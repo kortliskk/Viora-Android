@@ -1,0 +1,94 @@
+name: Viora Android Build
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get source code
+        uses: actions/checkout@v4
+
+      - name: Install Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Extract Android project ZIP
+        shell: bash
+        run: |
+          set -e
+
+          ZIP_FILE="viora-android-starter.zip"
+
+          if [ ! -f "$ZIP_FILE" ]; then
+            echo "HATA: ZIP dosyasi bulunamadi!"
+            exit 1
+          fi
+
+          mkdir -p extracted
+
+          unzip -o "$ZIP_FILE" -d extracted
+
+          PROJECT_DIR=""
+
+          while IFS= read -r file; do
+            dir="$(dirname "$file")"
+
+            if [ -d "$dir/app" ]; then
+              PROJECT_DIR="$dir"
+              break
+            fi
+          done < <(find extracted -name settings.gradle.kts)
+
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "HATA: Android proje klasoru bulunamadi!"
+            find extracted -maxdepth 4 -type f
+            exit 1
+          fi
+
+          echo "Proje bulundu: $PROJECT_DIR"
+
+          cp -a "$PROJECT_DIR"/. .
+
+          if [ ! -d app ]; then
+            echo "HATA: app klasoru bulunamadi!"
+            exit 1
+          fi
+
+      - name: Install Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK packages
+        run: |
+          sdkmanager "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
+
+      - name: Install Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build Viora APK
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: |
+          gradle --no-daemon :app:assembleDebug \
+            -PYOUTUBE_API_KEY="$YOUTUBE_API_KEY"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Viora-Android-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
