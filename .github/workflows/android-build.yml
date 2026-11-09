@@ -31,12 +31,11 @@ jobs:
           ZIP_FILE="viora-android-starter.zip"
 
           if [ ! -f "$ZIP_FILE" ]; then
-            echo "HATA: ZIP dosyasi bulunamadi!"
+            echo "ZIP dosyasi bulunamadi!"
             exit 1
           fi
 
           mkdir -p extracted
-
           unzip -o "$ZIP_FILE" -d extracted
 
           PROJECT_DIR=""
@@ -51,26 +50,34 @@ jobs:
           done < <(find extracted -name settings.gradle.kts)
 
           if [ -z "$PROJECT_DIR" ]; then
-            echo "HATA: Android proje klasoru bulunamadi!"
+            echo "Android proje klasoru bulunamadi!"
             find extracted -maxdepth 4 -type f
             exit 1
           fi
 
-          echo "Proje bulundu: $PROJECT_DIR"
-
           cp -a "$PROJECT_DIR"/. .
 
-          if [ ! -d app ]; then
-            echo "HATA: app klasoru bulunamadi!"
+          test -d app
+
+      - name: Configure Android SDK
+        shell: bash
+        run: |
+          set -e
+
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | sort -V | tail -n 1)"
+
+          if [ -z "$SDKMANAGER" ]; then
+            echo "sdkmanager bulunamadi!"
             exit 1
           fi
 
-      - name: Install Android SDK
-        uses: android-actions/setup-android@v3
+          yes | "$SDKMANAGER" --licenses || true
 
-      - name: Install SDK packages
-        run: |
-          sdkmanager "platform-tools" \
+          "$SDKMANAGER" --install \
+            "platform-tools" \
             "platforms;android-35" \
             "build-tools;35.0.0"
 
