@@ -57,7 +57,7 @@ jobs:
           cp -a "$PROJECT_DIR"/. .
           test -d app
 
-      - name: Fix Google Authorization dependency
+      - name: Fix Android dependencies
         shell: bash
         run: |
           python3 - <<'PY'
@@ -82,12 +82,20 @@ jobs:
           if not found:
               match = re.search(r'(?m)^dependencies\s*\{', s)
               if not match:
-                  raise SystemExit("dependencies bloğu bulunamadı!")
+                  raise SystemExit("dependencies blogu bulunamadi!")
               pos = match.end()
               s = s[:pos] + "\n" + dependency + s[pos:]
 
+          min_sdk_pattern = r'(?m)^(\s*minSdk\s*=\s*)23\b'
+          s, count = re.subn(min_sdk_pattern, r'\g<1>24', s)
+
+          if count == 0:
+              raise SystemExit("minSdk = 23 bulunamadi! Dosya kontrol edilmeli.")
+
           p.write_text(s + "\n")
-          print("Google Authorization dependency ayarlandi.")
+
+          print("Google Auth dependency ayarlandi.")
+          print("Minimum Android surumu API 24 yapildi.")
           PY
 
       - name: Configure Android SDK
@@ -95,14 +103,7 @@ jobs:
         run: |
           set -e
 
-          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
-
           SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | sort -V | tail -n 1)"
-
-          if [ -z "$SDKMANAGER" ]; then
-            echo "sdkmanager bulunamadi!"
-            exit 1
-          fi
 
           yes | "$SDKMANAGER" --licenses || true
 
