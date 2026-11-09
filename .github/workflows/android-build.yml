@@ -51,20 +51,50 @@ jobs:
 
           if [ -z "$PROJECT_DIR" ]; then
             echo "Android proje klasoru bulunamadi!"
-            find extracted -maxdepth 4 -type f
             exit 1
           fi
 
           cp -a "$PROJECT_DIR"/. .
-
           test -d app
+
+      - name: Fix Google Authorization dependency
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path("app/build.gradle.kts")
+          s = p.read_text()
+
+          dependency = '    implementation("com.google.android.gms:play-services-auth:22.0.0")'
+
+          lines = s.splitlines()
+          found = False
+
+          for i, line in enumerate(lines):
+              if "com.google.android.gms:play-services-auth:" in line:
+                  lines[i] = dependency
+                  found = True
+
+          s = "\n".join(lines)
+
+          if not found:
+              match = re.search(r'(?m)^dependencies\s*\{', s)
+              if not match:
+                  raise SystemExit("dependencies bloğu bulunamadı!")
+              pos = match.end()
+              s = s[:pos] + "\n" + dependency + s[pos:]
+
+          p.write_text(s + "\n")
+          print("Google Authorization dependency ayarlandi.")
+          PY
 
       - name: Configure Android SDK
         shell: bash
         run: |
           set -e
 
-          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
           echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
 
           SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | sort -V | tail -n 1)"
